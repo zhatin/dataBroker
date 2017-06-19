@@ -32,6 +32,10 @@ public class TcpPackageModel {
 	public static final int PACKAGE_PARSE_FAILED_DATA_BROKEN = 0x40;
 	public static final int PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR = 0x50;
 
+	public static final byte PACKAGE_FRAME_HEAD_BYTE_EE = (byte) 0xEE;
+	public static final byte PACKAGE_FRAME_TAIL_BYTE_FF = (byte) 0xFF;
+	public static final byte PACKAGE_FRAME_TAIL_BYTE_FC = (byte) 0xFC;
+
 	public TcpPackageModel() {
 
 	}

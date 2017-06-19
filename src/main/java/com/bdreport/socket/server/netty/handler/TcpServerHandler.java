@@ -60,13 +60,17 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	@Value("${bdreport.logpath}")
 	private String logPath;
 
+	
+	@Value("${bdreport.logsuffix}")
+	private String logSuffix;
+
 	private static String charSet;
 
 	@Value("${bdreport.charset}")
 	public void setCharSet(String charSet) {
 		TcpServerHandler.charSet = charSet;
 	}
-
+	
 	public static final String DIR_SUCCEED = "succeed";
 	public static final String DIR_FAILED = "failed";
 
@@ -114,13 +118,13 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 			while (in.isReadable()) {
 				byte byHex = (byte) in.readByte();
 				if (isHead == 0) {
-					if (byHex == (byte) 0xEE) {
+					if (byHex == TcpPackageModel.PACKAGE_FRAME_HEAD_BYTE_EE) {
 						isHead = 1;
 						logger.debug("Found Frame Head 0xEE.");
 						byteBuf.writeByte(byHex);
 					}
 				} else {
-					if (byHex == (byte) 0xFF) {
+					if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FF) {
 						switch (isTail) {
 						case 0:
 							logger.debug("Found Frame Tail 1 0xFF.");
@@ -139,7 +143,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 							isTail = 0;
 							break;
 						}
-					} else if (byHex == (byte) 0xFC) {
+					} else if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FC) {
 						if (isTail == 1) {
 							logger.debug("Found Frame Tail 2 0xFC.");
 							isTail = 2;
@@ -226,7 +230,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		String gwno = String.valueOf(pkgModel.getDataModel().getGatewayNo());
 		String contents = pkgModel.toJsonString();
 		String fileName = logPath + File.separator + dir + File.separator + date + File.separator + gwno
-				+ File.separator + fc + File.separator + time + ".log";
+				+ File.separator + fc + File.separator + time + logSuffix;
 		writeLog(fileName, contents);
 	}
 
