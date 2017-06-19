@@ -102,7 +102,9 @@ public class TcpServerHandlerTest {
 	public void testWriteLog() throws Exception {
 		String fileName = "/home/zhatin/log/bdreport/all/20170612090000/1/B1.log";
 		String contents = "{'gateway_no':1,'data_type':'B1','data_date_time':'2017-06-13 09:00:00','remote_ip':'127.0.0.1','remote_port':56167,'data_length:2,'data_list':'[25.6875,25.796875]}'";
-		TcpServerHandler.writeLog(fileName, contents);
+		TcpServerHandler tcpServerHandler = new TcpServerHandler();
+		tcpServerHandler.setCharSet("utf-8");
+		tcpServerHandler.writeLog(fileName, contents);
 	}
 
 	@Test
