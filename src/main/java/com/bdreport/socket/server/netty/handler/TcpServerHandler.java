@@ -60,6 +60,13 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	@Value("${bdreport.logpath}")
 	private String logPath;
 
+	private static String charSet;
+
+	@Value("${bdreport.charset}")
+	public void setCharSet(String charSet) {
+		TcpServerHandler.charSet = charSet;
+	}
+
 	public static final String DIR_SUCCEED = "succeed";
 	public static final String DIR_FAILED = "failed";
 
@@ -213,7 +220,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	public void writePackageLog(TcpPackageModel pkgModel, String dir) {
 		String datetime = pkgModel.getDataModel().getDataTime().replaceAll("-", "").replaceAll(":", "").replaceAll(" ",
 				"");
-		String date = datetime.substring(0, 7);
+		String date = datetime.substring(0, 8);
 		String time = datetime.substring(8);
 		String fc = pkgModel.getDataModel().getFuncCode();
 		String gwno = String.valueOf(pkgModel.getDataModel().getGatewayNo());
@@ -229,7 +236,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		if (!dir.exists()) {
 			dir.mkdirs();
 		}
-		try (BufferedWriter writer = Files.newBufferedWriter(path, Charset.forName("utf-8"),
+		try (BufferedWriter writer = Files.newBufferedWriter(path, Charset.forName(charSet),
 				StandardOpenOption.CREATE);) {
 			writer.write(contents);
 		} catch (IOException e) {
