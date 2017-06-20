@@ -35,6 +35,14 @@ public class TcpPackageModel {
 	public static final byte PACKAGE_FRAME_HEAD_BYTE_EE = (byte) 0xEE;
 	public static final byte PACKAGE_FRAME_TAIL_BYTE_FF = (byte) 0xFF;
 	public static final byte PACKAGE_FRAME_TAIL_BYTE_FC = (byte) 0xFC;
+	
+	public static final int PACKAGE_FRAME_HEAD_STATUS_NULL = 0;
+	public static final int PACKAGE_FRAME_HEAD_STATUS_START = 1;
+	public static final int PACKAGE_FRAME_TAIL_STATUS_NULL = 0;
+	public static final int PACKAGE_FRAME_TAIL_STATUS_START = 1;
+	public static final int PACKAGE_FRAME_TAIL_STATUS_2 = 2;
+	public static final int PACKAGE_FRAME_TAIL_STATUS_3 = 3;
+	public static final int PACKAGE_FRAME_TAIL_STATUS_END = 4;
 
 	public TcpPackageModel() {
 
@@ -147,8 +155,8 @@ public class TcpPackageModel {
 			logger.debug("Package Data Time: " + strTime);
 			byte[] fc = new byte[1];
 			fc[0] = funcCode;
-			dataModel.initDataModel(ipAddr, inetPort, Hex.encodeHexString(fc).toUpperCase(), gatewayNo, strTime, datalen,
-					dataList);
+			dataModel.initDataModel(ipAddr, inetPort, Hex.encodeHexString(fc).toUpperCase(), gatewayNo, strTime,
+					datalen, dataList);
 		} else {
 			logger.debug("Package FuncCode Unkown: " + funcCode);
 			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
@@ -198,13 +206,13 @@ public class TcpPackageModel {
 		return (short) (((f >> 16) & 0x8000) | ((((f & 0x7f800000) - 0x38000000) >> 13) & 0x7c00)
 				| ((f >> 13) & 0x03ff));
 	}
-	
-	public static byte[] shortToByteArray(short s) {  
-        byte[] targets = new byte[2];  
-        for (int i = 0; i < 2; i++) {  
-            int offset = (targets.length - 1 - i) * 8;  
-            targets[i] = (byte) ((s >>> offset) & 0xff);  
-        }  
-        return targets;  
-    } 
+
+	public static byte[] shortToByteArray(short s) {
+		byte[] targets = new byte[2];
+		for (int i = 0; i < 2; i++) {
+			int offset = (targets.length - 1 - i) * 8;
+			targets[i] = (byte) ((s >>> offset) & 0xff);
+		}
+		return targets;
+	}
 }

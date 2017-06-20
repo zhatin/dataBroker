@@ -52,8 +52,8 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	static class Local {
 	}
 
-	private int isHead = 0;
-	private int isTail = 0;
+	private int isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL;
+	private int isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
 
 	private ByteBuf byteBuf;
 
@@ -117,46 +117,46 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		try {
 			while (in.isReadable()) {
 				byte byHex = (byte) in.readByte();
-				if (isHead == 0) {
+				if (isHead == TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL) {
 					if (byHex == TcpPackageModel.PACKAGE_FRAME_HEAD_BYTE_EE) {
-						isHead = 1;
+						isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_START;
 						logger.debug("Found Frame Head 0xEE.");
 						byteBuf.writeByte(byHex);
 					}
 				} else {
 					if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FF) {
 						switch (isTail) {
-						case 0:
+						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL:
 							logger.debug("Found Frame Tail 1 0xFF.");
-							isTail = 1;
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_START;
 							break;
-						case 2:
+						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_2:
 							logger.debug("Found Frame Tail 3 0xFF.");
-							isTail = 3;
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_3;
 							break;
-						case 3:
+						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_3:
 							logger.debug("Found Frame Tail 4 0xFF.");
-							isTail = 4;
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_END;
 							break;
 						default:
 							logger.debug("Reset Frame Tail.");
-							isTail = 0;
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
 							break;
 						}
 					} else if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FC) {
-						if (isTail == 1) {
+						if (isTail == TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_START) {
 							logger.debug("Found Frame Tail 2 0xFC.");
-							isTail = 2;
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_2;
 						} else {
 							logger.debug("Reset Frame Tail.");
-							isTail = 0;
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
 						}
 					} else {
 						// logger.debug("Reset Frame Tail.");
-						isTail = 0;
+						isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
 					}
 					byteBuf.writeByte(byHex);
-					if (isTail == 4) {
+					if (isTail == TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_END) {
 						byte[] hexByte = new byte[byteBuf.readableBytes()];
 						byteBuf.readBytes(hexByte);
 						TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
@@ -173,8 +173,8 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 							writePackageLog(tcpPackageModel, DIR_FAILED);
 						}
 
-						isHead = 0;
-						isTail = 0;
+						isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL;
+						isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
 
 						byteBuf.clear();
 						ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
