@@ -21,6 +21,8 @@ import com.bdreport.socket.server.netty.ChannelRepository;
 import com.bdreport.socket.server.netty.TCPServer;
 import com.bdreport.socket.server.netty.handler.TcpChannelInitializer;
 
+import ch.qos.logback.classic.Logger;
+
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
@@ -53,7 +55,7 @@ public class Application {
     
     @Bean
 	public Queue queue() {
-		return new ActiveMQQueue("bdreport.queue");
+		return new ActiveMQQueue(queueName);
 	}
 
     @Value("${tcp.port}")
@@ -70,8 +72,11 @@ public class Application {
 
     @Value("${so.backlog}")
     private int backlog;
-
-    @SuppressWarnings("unchecked")
+    
+    @Value("${bdreport.queue.name}")
+    private String queueName;
+    
+	@SuppressWarnings("unchecked")
     @Bean(name = "serverBootstrap")
     public ServerBootstrap bootstrap() {
         ServerBootstrap b = new ServerBootstrap();
