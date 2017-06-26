@@ -57,16 +57,16 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 
 	private ByteBuf byteBuf;
 
-	@Value("${bdreport.logpath}")
+	@Value("${bdreport.logpath ?: '/var/log/'}")
 	private String logPath;
 
 	
-	@Value("${bdreport.logsuffix}")
+	@Value("${bdreport.logsuffix ?: '.log'}")
 	private String logSuffix;
 
 	private static String charSet;
 
-	@Value("${bdreport.charset}")
+	@Value("${bdreport.charset ?: 'utf-8'}")
 	public void setCharSet(String charSet) {
 		TcpServerHandler.charSet = charSet;
 	}

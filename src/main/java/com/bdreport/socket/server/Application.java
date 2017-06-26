@@ -58,22 +58,22 @@ public class Application {
 		return new ActiveMQQueue(queueName);
 	}
 
-    @Value("${tcp.port}")
+    @Value("${tcp.port ?: 8091}")
     private int tcpPort;
 
-    @Value("${boss.thread.count}")
+    @Value("${boss.thread.count ?: 2}")
     private int bossCount;
 
-    @Value("${worker.thread.count}")
+    @Value("${worker.thread.count ?: 2}")
     private int workerCount;
 
-    @Value("${so.keepalive}")
+    @Value("${so.keepalive ?: true}")
     private boolean keepAlive;
 
-    @Value("${so.backlog}")
+    @Value("${so.backlog ?: 100}")
     private int backlog;
     
-    @Value("${bdreport.queue.name}")
+    @Value("${bdreport.queue.name ?: 'bdreport.queue'}")
     private String queueName;
     
 	@SuppressWarnings("unchecked")
