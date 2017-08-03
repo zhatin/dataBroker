@@ -3,7 +3,9 @@ package com.bdreport.socket.server.data;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
@@ -35,7 +37,7 @@ public class TcpPackageModel {
 	public static final byte PACKAGE_FRAME_HEAD_BYTE_EE = (byte) 0xEE;
 	public static final byte PACKAGE_FRAME_TAIL_BYTE_FF = (byte) 0xFF;
 	public static final byte PACKAGE_FRAME_TAIL_BYTE_FC = (byte) 0xFC;
-	
+
 	public static final int PACKAGE_FRAME_HEAD_STATUS_NULL = 0;
 	public static final int PACKAGE_FRAME_HEAD_STATUS_START = 1;
 	public static final int PACKAGE_FRAME_TAIL_STATUS_NULL = 0;
@@ -139,24 +141,32 @@ public class TcpPackageModel {
 				return PACKAGE_PARSE_FAILED_DATA_BROKEN;
 			}
 			byte[] data = Arrays.copyOfRange(bytesMsg, 13, 13 + length);
-			int datalen = length / 2;
-			List<Float> dataList = new ArrayList();
+			int ptr = 0;
+			int datalen = 0;
+			Map<Integer, List<Float>> dataList = new HashMap<Integer, List<Float>>();
 
-			if (bytesMsg[13 + length] == checkSum(data)) {
-				for (int i = 0; i < datalen; i++) {
-					float f = toFloat((short) (((data[i * 2] & 0xFF) << 8) | (data[i * 2 + 1] & 0xFF)));
-					dataList.add(f);
+			byte chk = checkSum(data);
+			if (bytesMsg[13 + length] == chk) {
+				for (; ptr < length;) {
+					int termNo = (int) (((data[ptr] & 0xFF) << 8) | (data[ptr + 1] & 0xFF));
+					int datInTerm = (int) (((data[ptr + 2] & 0xFF) << 8) | (data[ptr + 3] & 0xFF));
+					List<Float> lst = new ArrayList<Float>();
+					for (int i = 0; i < datInTerm; i++) {
+						float f = toFloat((short) (((data[4 + i * 2] & 0xFF) << 8) | (data[4 + i * 2 + 1] & 0xFF)));
+						lst.add(f);
+					}
+					dataList.put(termNo, lst);
+					datalen = datalen + datInTerm;
+					ptr = ptr + 4 + 2 * datInTerm;
 				}
 			} else { // Data Checksum Error
-				logger.debug("Package Data Checksum Error.");
+				logger.debug("Package Data Checksum Error. expect : " + byteToHexString(chk) + " , but : "
+						+ byteToHexString(bytesMsg[13 + length]));
 				return PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR;
 			}
 			String strTime = String.format("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);
 			logger.debug("Package Data Time: " + strTime);
-			byte[] fc = new byte[1];
-			fc[0] = funcCode;
-			dataModel.initDataModel(ipAddr, inetPort, Hex.encodeHexString(fc).toUpperCase(), gatewayNo, strTime,
-					datalen, dataList);
+			dataModel.initDataModel(ipAddr, inetPort, byteToHexString(funcCode), gatewayNo, strTime, datalen, dataList);
 		} else {
 			logger.debug("Package FuncCode Unkown: " + funcCode);
 			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
@@ -214,5 +224,11 @@ public class TcpPackageModel {
 			targets[i] = (byte) ((s >>> offset) & 0xff);
 		}
 		return targets;
+	}
+
+	public static String byteToHexString(byte dat) {
+		byte[] fc = new byte[1];
+		fc[0] = dat;
+		return Hex.encodeHexString(fc).toUpperCase();
 	}
 }

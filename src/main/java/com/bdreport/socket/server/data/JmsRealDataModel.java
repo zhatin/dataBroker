@@ -2,6 +2,7 @@ package com.bdreport.socket.server.data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
@@ -37,13 +38,13 @@ public class JmsRealDataModel {
 	private int dataLength = 0;
 
 	@JSONField(name = "data_list", ordinal = 7)
-	private List<Float> dataList;
+	private Map<Integer, List<Float>> dataList;
 
-	public List<Float> getDataList() {
+	public Map<Integer, List<Float>> getDataList() {
 		return dataList;
 	}
 
-	public void setDataList(List<Float> dataList) {
+	public void setDataList(Map<Integer, List<Float>> dataList) {
 		this.dataList = dataList;
 	}
 
@@ -52,12 +53,12 @@ public class JmsRealDataModel {
 	}
 
 	public JmsRealDataModel(String ipAddr, int inetPort, String funcCode, int gwNo, String dataTime, int length,
-			List<Float> dataList) {
+			Map<Integer, List<Float>> dataList) {
 		initDataModel(ipAddr, inetPort, funcCode, gwNo, dataTime, length, dataList);
 	}
 
 	public void initDataModel(String ipAddr, int inetPort, String funcCode, int gwNo, String dataTime, int length,
-			List<Float> dataList) {
+			Map<Integer, List<Float>> dataList) {
 		this.ipAddr = ipAddr;
 		this.inetPort = inetPort;
 		this.funcCode = funcCode;
