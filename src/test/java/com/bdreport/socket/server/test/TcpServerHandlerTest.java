@@ -82,18 +82,18 @@ public class TcpServerHandlerTest {
 
 		byte[] byData0 = { (byte) 0x00, (byte) 0x00 };
 		float f0 = 0;
-		assertEquals(TcpPackageModel.toFloat((short) (((byData0[0] & 0xFF) << 8) | (byData0[1] & 0xFF))), f0, 0.01);
+		assertEquals(TcpPackageModel.half2float((short) (((byData0[0] & 0xFF) << 8) | (byData0[1] & 0xFF))), f0, 0.01);
 
 		byte[] byData1 = { (byte) 0x3C, (byte) 0x00 };
 		float f1 = 1;
-		assertEquals(TcpPackageModel.toFloat((short) (((byData1[0] & 0xFF) << 8) | (byData1[1] & 0xFF))), f1, 0.01);
+		assertEquals(TcpPackageModel.half2float((short) (((byData1[0] & 0xFF) << 8) | (byData1[1] & 0xFF))), f1, 0.01);
 
 		byte[] byData2 = { (byte) 0x3C, (byte) 0x01 };
 		float f2 = (float) 1.0009765625;
-		assertEquals(TcpPackageModel.toFloat((short) (((byData2[0] & 0xFF) << 8) | (byData2[1] & 0xFF))), f2, 0.00001);
+		assertEquals(TcpPackageModel.half2float((short) (((byData2[0] & 0xFF) << 8) | (byData2[1] & 0xFF))), f2, 0.00001);
 
 		String hexFloat = Hex
-				.encodeHexString(TcpPackageModel.shortToByteArray(TcpPackageModel.toHalfFloat((float) 25.7)))
+				.encodeHexString(TcpPackageModel.shortToByteArray(TcpPackageModel.float2half((float) 25.7)))
 				.toUpperCase();
 		assertEquals(hexFloat, "4E6C");
 	}

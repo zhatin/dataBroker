@@ -9,10 +9,17 @@ import java.util.Map;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Component;
 
 import com.alibaba.fastjson.JSON;
+import com.bdreport.socket.server.netty.handler.TcpServerHandler;
 
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 
 @Component
@@ -45,6 +52,9 @@ public class TcpPackageModel {
 	public static final int PACKAGE_FRAME_TAIL_STATUS_2 = 2;
 	public static final int PACKAGE_FRAME_TAIL_STATUS_3 = 3;
 	public static final int PACKAGE_FRAME_TAIL_STATUS_END = 4;
+
+	public static final String FLOAT16_FORMAT_CUSTOM0625 = "custom0625";
+	public static final String FLOAT16_FORMAT_HALF = "half";
 
 	public TcpPackageModel() {
 
@@ -152,7 +162,8 @@ public class TcpPackageModel {
 					int datInTerm = (int) (((data[ptr + 2] & 0xFF) << 8) | (data[ptr + 3] & 0xFF));
 					List<Float> lst = new ArrayList<Float>();
 					for (int i = 0; i < datInTerm; i++) {
-						float f = toFloat((short) (((data[4 + i * 2] & 0xFF) << 8) | (data[4 + i * 2 + 1] & 0xFF)));
+						float f = short2float(
+								(short) (((data[ptr + 4 + i * 2] & 0xFF) << 8) | (data[ptr + 4 + i * 2 + 1] & 0xFF)));
 						lst.add(f);
 					}
 					dataList.put(termNo, lst);
@@ -175,7 +186,25 @@ public class TcpPackageModel {
 		return PACKAGE_PARSE_SUCCEED;
 	}
 
-	public static float toFloat(final short half) {
+	public float short2float(final short sh) {
+		// logger.debug("bdreport.float16.format=" +
+		// TcpServerHandler.float16Format);
+		switch (TcpServerHandler.float16Format) {
+		case FLOAT16_FORMAT_HALF:
+			return half2float(sh);
+		case FLOAT16_FORMAT_CUSTOM0625:
+			return custom2float(sh);
+		}
+		return (float) 0.0;
+
+	}
+
+	public static float custom2float(final short cust) {
+
+		return (float) (cust * 0.0625);
+	}
+
+	public static float half2float(final short half) {
 		switch ((int) half) {
 		case 0x0000:
 			return 0.0f;
@@ -191,7 +220,7 @@ public class TcpPackageModel {
 		}
 	}
 
-	public static short toHalfFloat(final float v) {
+	public static short float2half(final float v) {
 		if (Float.isNaN(v))
 			throw new UnsupportedOperationException("NaN to half conversion not supported!");
 		if (v == Float.POSITIVE_INFINITY)

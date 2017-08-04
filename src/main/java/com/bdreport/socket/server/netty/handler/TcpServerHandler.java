@@ -71,6 +71,13 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		TcpServerHandler.charSet = charSet;
 	}
 	
+	public static String float16Format;
+	
+	@Value("${bdreport.float16.format:'custom0625'}")
+	public void setFloat16Format(String fmt) {
+		TcpServerHandler.float16Format = fmt;
+	}
+
 	public static final String DIR_SUCCEED = "succeed";
 	public static final String DIR_FAILED = "failed";
 
