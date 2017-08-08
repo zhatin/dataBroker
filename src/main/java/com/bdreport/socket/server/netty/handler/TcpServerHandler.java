@@ -52,11 +52,6 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	static class Local {
 	}
 
-	private int isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL;
-	private int isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
-
-	private ByteBuf byteBuf;
-
 	@Value("${bdreport.logpath:'/var/log/'}")
 	private String logPath;
 
@@ -105,17 +100,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		String channelKey = ctx.channel().remoteAddress().toString();
 		channelRepository.put(channelKey, ctx.channel());
 
-		byteBuf = Unpooled.buffer(10240);
-
 		logger.debug("Binded Channel Count is " + this.channelRepository.size());
-	}
-
-	public ByteBuf getByteBuf() {
-		return byteBuf;
-	}
-
-	public void setByteBuf(ByteBuf byteBuf) {
-		this.byteBuf = byteBuf;
 	}
 
 	@Override
@@ -123,73 +108,25 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		ByteBuf in = (ByteBuf) msg;
 		try {
 			while (in.isReadable()) {
-				byte byHex = (byte) in.readByte();
-				if (isHead == TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL) {
-					if (byHex == TcpPackageModel.PACKAGE_FRAME_HEAD_BYTE_EE) {
-						isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_START;
-						logger.debug("Found Frame Head 0xEE.");
-						byteBuf.writeByte(byHex);
-					}
-				} else {
-					if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FF) {
-						switch (isTail) {
-						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL:
-							logger.debug("Found Frame Tail 1 0xFF.");
-							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_START;
-							break;
-						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_2:
-							logger.debug("Found Frame Tail 3 0xFF.");
-							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_3;
-							break;
-						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_3:
-							logger.debug("Found Frame Tail 4 0xFF.");
-							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_END;
-							break;
-						default:
-							logger.debug("Reset Frame Tail.");
-							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
-							break;
-						}
-					} else if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FC) {
-						if (isTail == TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_START) {
-							logger.debug("Found Frame Tail 2 0xFC.");
-							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_2;
-						} else {
-							logger.debug("Reset Frame Tail.");
-							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
-						}
-					} else {
-						// logger.debug("Reset Frame Tail.");
-						isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
-					}
-					byteBuf.writeByte(byHex);
-					if (isTail == TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_END) {
-						byte[] hexByte = new byte[byteBuf.readableBytes()];
-						byteBuf.readBytes(hexByte);
-						TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
-						String hexStr = tcpPackageModel.toHexString();
-						logger.debug("Received Message: " + hexStr + " From Client: "
-								+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
+				byte[] hexByte = new byte[in.readableBytes()];
+				in.readBytes(hexByte);
+				TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
+				String hexStr = tcpPackageModel.toHexString();
+				logger.debug("Received Message: " + hexStr + " From Client: "
+						+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
 
-						writePackageLog(tcpPackageModel, DIR_SUCCEED);
+				writePackageLog(tcpPackageModel, DIR_SUCCEED);
 
-						try {
-							jmsSend(tcpPackageModel);
-						} catch (Exception e) {
-							e.printStackTrace();
-							writePackageLog(tcpPackageModel, DIR_FAILED);
-						}
-
-						isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL;
-						isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
-
-						byteBuf.clear();
-						ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
-						logger.debug("Sent Response: " + Hex.encodeHexString(msgSucceed).toUpperCase() + " To Client: "
-								+ ctx.channel().remoteAddress().toString());
-
-					}
+				try {
+					jmsSend(tcpPackageModel);
+				} catch (Exception e) {
+					e.printStackTrace();
+					writePackageLog(tcpPackageModel, DIR_FAILED);
 				}
+
+				ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
+				logger.debug("Sent Response: " + Hex.encodeHexString(msgSucceed).toUpperCase() + " To Client: "
+						+ ctx.channel().remoteAddress().toString());
 			}
 		} finally {
 			in.release();
@@ -210,10 +147,6 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 
 		String channelKey = ctx.channel().remoteAddress().toString();
 		this.channelRepository.remove(channelKey);
-
-		if (byteBuf != null)
-			byteBuf.release();
-		byteBuf = null;
 
 		logger.debug("Binded Channel Count is " + this.channelRepository.size());
 	}

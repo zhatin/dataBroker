@@ -66,7 +66,6 @@ public class TcpServerHandlerTest {
 	public void testChannelRead() throws Exception {
 		when(channelHandlerContext.channel()).thenReturn(channel);
 		when(channelHandlerContext.channel().remoteAddress()).thenReturn(remoteAddress);
-		tcpServerHandler.setByteBuf(Unpooled.buffer(10240));
 		// tcpServerHandler.channelRead(channelHandlerContext,
 		// Unpooled.wrappedBuffer(testMsg));
 	}
