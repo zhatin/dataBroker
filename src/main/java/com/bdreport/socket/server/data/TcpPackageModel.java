@@ -29,9 +29,13 @@ public class TcpPackageModel {
 	private String ipAddr = "";
 	private int inetPort = 0;
 
-	private static Logger logger = Logger.getLogger(TcpPackageModel.class.getName());
+	private Object dataModel;
 
-	private JmsRealDataModel dataModel = new JmsRealDataModel();
+	private static Logger logger = Logger.getLogger(TcpPackageModel.class.getName());
+	
+	public static final int PACKAGE_HEADER_LENGTH = 13;
+	public static final int PACKAGE_CHECK_LENGTH = 1;
+	public static final int PACKAGE_TAILER_LENGTH = 4;
 
 	public static final int PACKAGE_PARSE_SUCCEED = 0x00;
 	public static final int PACKAGE_PARSE_FAILED_PACKAGE_NULL = 0x10;
@@ -87,11 +91,11 @@ public class TcpPackageModel {
 		from(buf);
 	}
 
-	public JmsRealDataModel getDataModel() {
-		return dataModel;
+	public DataModel getDataModel() {
+		return (DataModel) dataModel;
 	}
 
-	public void setDataModel(JmsRealDataModel dataModel) {
+	public void setDataModel(DataModel dataModel) {
 		this.dataModel = dataModel;
 	}
 
@@ -101,10 +105,6 @@ public class TcpPackageModel {
 
 	public String toHexString() {
 		return Hex.encodeHexString(bytesMsg).toUpperCase();
-	}
-
-	public String toJsonString() {
-		return JSON.toJSONString(dataModel);
 	}
 
 	public byte checkSum(byte[] buf) {
@@ -120,6 +120,39 @@ public class TcpPackageModel {
 	}
 
 	private int from(byte[] buf) {
+		logger.debug("Buffer : " + Hex.encodeHexString(buf).toUpperCase());
+
+		if (buf == null) {// package null
+			logger.debug("Package Null Error.");
+			return PACKAGE_PARSE_FAILED_PACKAGE_NULL;
+		}
+		int len = buf.length;
+		logger.debug("Buffer length is : " + len);
+		if (len < 2) {// package empty
+			logger.debug("Package Empty Error.");
+			return PACKAGE_PARSE_FAILED_PACKAGE_EMPTY;
+		}
+		bytesMsg = Arrays.copyOf(buf, len);
+		byte funcCode = (byte) 0;
+
+		funcCode = bytesMsg[1];
+
+		switch (funcCode) {
+
+		case (byte) 0xB1:
+		case (byte) 0xB2:
+		case (byte) 0xB3:
+		case (byte) 0xB4:
+			return fromBx(buf);
+		default:
+			logger.debug("Package FuncCode Unkown: " + byteToHexString(funcCode));
+			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
+
+		}
+
+	}
+
+	private int fromBx(byte[] buf) {
 		if (buf == null) {// package null
 			logger.debug("Package Null Error.");
 			return PACKAGE_PARSE_FAILED_PACKAGE_NULL;
@@ -129,10 +162,12 @@ public class TcpPackageModel {
 			logger.debug("Package Empty Error.");
 			return PACKAGE_PARSE_FAILED_PACKAGE_EMPTY;
 		}
-		bytesMsg = Arrays.copyOf(buf, len);
 		byte funcCode = (byte) 0;
 
 		funcCode = bytesMsg[1];
+
+		logger.debug("Protocol code is : " + byteToHexString(funcCode));
+
 		if (funcCode == (byte) 0xB1 || funcCode == (byte) 0xB2 || funcCode == (byte) 0xB3 || funcCode == (byte) 0xB4) {
 			if (len < 13) {// package broken
 				logger.debug("Package Broken Error.");
@@ -146,6 +181,12 @@ public class TcpPackageModel {
 			int minute = (int) bytesMsg[9];
 			int second = (int) bytesMsg[10];
 			int length = (int) (((bytesMsg[11] & 0xFF) << 8) | (bytesMsg[12] & 0xFF));
+
+			logger.debug("Gateway No is : " + gatewayNo);
+			// logger.debug("Data time is : " + year + "-" + month + "-" + day +
+			// " " + hour + ":" + minute + ":" + second);
+			logger.debug("Data length is : " + length);
+
 			if (len < 13 + length) {// data broken
 				logger.debug("Package Data Broken Error, Data Length: " + length);
 				return PACKAGE_PARSE_FAILED_DATA_BROKEN;
@@ -157,18 +198,23 @@ public class TcpPackageModel {
 
 			byte chk = checkSum(data);
 			if (bytesMsg[13 + length] == chk) {
-				for (; ptr < length;) {
+				while (ptr < length) {
 					int termNo = (int) (((data[ptr] & 0xFF) << 8) | (data[ptr + 1] & 0xFF));
+					logger.debug("termNo : " + termNo);
 					int datInTerm = (int) (((data[ptr + 2] & 0xFF) << 8) | (data[ptr + 3] & 0xFF));
+					logger.debug("datinTerm : " + datInTerm);
 					List<Float> lst = new ArrayList<Float>();
-					for (int i = 0; i < datInTerm; i++) {
-						float f = short2float(
-								(short) (((data[ptr + 4 + i * 2] & 0xFF) << 8) | (data[ptr + 4 + i * 2 + 1] & 0xFF)));
+					for (int i = 0; i < datInTerm / 2; i++) {
+						int i1 = ptr + 4 + i * 2;
+						int i2 = i1 + 1;
+						//logger.debug("i1 : " + i1 + ", i2 : " + i2);
+						float f = short2float((short) (((data[i1] & 0xFF) << 8) | (data[i2] & 0xFF)));
 						lst.add(f);
 					}
 					dataList.put(termNo, lst);
-					datalen = datalen + datInTerm;
-					ptr = ptr + 4 + 2 * datInTerm;
+					datalen = datalen + datInTerm / 2;
+					ptr = ptr + 4 + datInTerm;
+					logger.debug("ptr : " + ptr);
 				}
 			} else { // Data Checksum Error
 				logger.debug("Package Data Checksum Error. expect : " + byteToHexString(chk) + " , but : "
@@ -177,9 +223,10 @@ public class TcpPackageModel {
 			}
 			String strTime = String.format("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);
 			logger.debug("Package Data Time: " + strTime);
-			dataModel.initDataModel(ipAddr, inetPort, byteToHexString(funcCode), gatewayNo, strTime, datalen, dataList);
+			dataModel = new DataModelBx(ipAddr, inetPort, byteToHexString(funcCode), gatewayNo, strTime, datalen,
+					dataList);
 		} else {
-			logger.debug("Package FuncCode Unkown: " + funcCode);
+			logger.debug("Package FuncCode not Bx. ");
 			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
 		}
 		logger.debug("Package Parse Succeed.");

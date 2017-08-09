@@ -31,6 +31,9 @@ import org.springframework.jms.core.JmsMessagingTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
+import com.alibaba.fastjson.JSON;
+import com.bdreport.socket.server.data.DataModel;
+import com.bdreport.socket.server.data.DataModelBx;
 import com.bdreport.socket.server.data.TcpPackageModel;
 import com.bdreport.socket.server.netty.ChannelRepository;
 
@@ -52,10 +55,14 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	static class Local {
 	}
 
+	private int isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL;
+	private int isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
+
+	private ByteBuf byteBuf;
+
 	@Value("${bdreport.logpath:'/var/log/'}")
 	private String logPath;
 
-	
 	@Value("${bdreport.logsuffix:'.log'}")
 	private String logSuffix;
 
@@ -65,9 +72,9 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	public void setCharSet(String charSet) {
 		TcpServerHandler.charSet = charSet;
 	}
-	
+
 	public static String float16Format;
-	
+
 	@Value("${bdreport.float16.format:'custom0625'}")
 	public void setFloat16Format(String fmt) {
 		TcpServerHandler.float16Format = fmt;
@@ -83,12 +90,23 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	private JmsMessagingTemplate jmsMessagingTemplate;
 
 	@Autowired
-	private Queue queue;
+	private Queue queueBx;
+
+	@Autowired
+	private Queue queueBa;
 
 	@Autowired
 	private ChannelRepository channelRepository;
 
 	private static Logger logger = Logger.getLogger(TcpServerHandler.class.getName());
+
+	public ByteBuf getByteBuf() {
+		return byteBuf;
+	}
+
+	public void setByteBuf(ByteBuf byteBuf) {
+		this.byteBuf = byteBuf;
+	}
 
 	@Override
 	public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -100,34 +118,73 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		String channelKey = ctx.channel().remoteAddress().toString();
 		channelRepository.put(channelKey, ctx.channel());
 
+		byteBuf = Unpooled.buffer(10240);
+
 		logger.debug("Binded Channel Count is " + this.channelRepository.size());
 	}
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
 		ByteBuf in = (ByteBuf) msg;
+
 		try {
 			while (in.isReadable()) {
-				byte[] hexByte = new byte[in.readableBytes()];
-				in.readBytes(hexByte);
-				TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
-				String hexStr = tcpPackageModel.toHexString();
-				logger.debug("Received Message: " + hexStr + " From Client: "
-						+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
+				if (in.isReadable(TcpPackageModel.PACKAGE_HEADER_LENGTH)) {
 
-				writePackageLog(tcpPackageModel, DIR_SUCCEED);
+					byte[] bytesHead = new byte[TcpPackageModel.PACKAGE_HEADER_LENGTH];
+					in.readBytes(bytesHead, 0, TcpPackageModel.PACKAGE_HEADER_LENGTH);
+					byteBuf.writeBytes(bytesHead);
+					if (bytesHead[0] != TcpPackageModel.PACKAGE_FRAME_HEAD_BYTE_EE) {
+						break;
+					}
 
-				try {
-					jmsSend(tcpPackageModel);
-				} catch (Exception e) {
-					e.printStackTrace();
-					writePackageLog(tcpPackageModel, DIR_FAILED);
+					int datalength = (int) (((bytesHead[11] & 0xFF) << 8) | (bytesHead[12] & 0xFF));
+
+					while (in.isReadable()) {
+						if (in.isReadable(datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
+								+ TcpPackageModel.PACKAGE_TAILER_LENGTH)) {
+							byte[] bytesMsg = new byte[datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
+									+ TcpPackageModel.PACKAGE_TAILER_LENGTH];
+							in.readBytes(bytesMsg, 0, datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
+									+ TcpPackageModel.PACKAGE_TAILER_LENGTH);
+							if (byteBuf.capacity() < TcpPackageModel.PACKAGE_HEADER_LENGTH + datalength
+									+ TcpPackageModel.PACKAGE_CHECK_LENGTH + TcpPackageModel.PACKAGE_TAILER_LENGTH) {
+								byteBuf.capacity(TcpPackageModel.PACKAGE_HEADER_LENGTH + datalength
+										+ TcpPackageModel.PACKAGE_CHECK_LENGTH + TcpPackageModel.PACKAGE_TAILER_LENGTH);
+							}
+							byteBuf.writeBytes(bytesMsg);
+						}
+					}
+
+					byte[] hexByte = new byte[byteBuf.readableBytes()];
+					byteBuf.readBytes(hexByte);
+					TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
+					String hexStr = tcpPackageModel.toHexString();
+					logger.debug("Received Message: " + hexStr + " From Client: "
+							+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
+
+					try {
+						jmsSendBx(tcpPackageModel);
+
+						ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
+						logger.debug("Sent Response: " + Hex.encodeHexString(msgSucceed).toUpperCase() + " To Client: "
+								+ ctx.channel().remoteAddress().toString());
+					} catch (Exception e) {
+						e.printStackTrace();
+
+						writePackageLog(tcpPackageModel, DIR_FAILED);
+						ctx.writeAndFlush(Unpooled.wrappedBuffer(msgFailed));
+						logger.debug("Sent Response: " + Hex.encodeHexString(msgFailed).toUpperCase() + " To Client: "
+								+ ctx.channel().remoteAddress().toString());
+					}
+
+					byteBuf.clear();
+
 				}
 
-				ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
-				logger.debug("Sent Response: " + Hex.encodeHexString(msgSucceed).toUpperCase() + " To Client: "
-						+ ctx.channel().remoteAddress().toString());
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
 		} finally {
 			in.release();
 		}
@@ -148,6 +205,10 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		String channelKey = ctx.channel().remoteAddress().toString();
 		this.channelRepository.remove(channelKey);
 
+		if (byteBuf != null)
+			byteBuf.release();
+		byteBuf = null;
+
 		logger.debug("Binded Channel Count is " + this.channelRepository.size());
 	}
 
@@ -155,20 +216,28 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		this.channelRepository = channelRepository;
 	}
 
-	public void jmsSend(TcpPackageModel tcpPackageModel) {
-		String json = tcpPackageModel.toJsonString();
-		logger.debug("Package JSON Data: " + json);
-		this.jmsMessagingTemplate.convertAndSend(this.queue, json);
+	public void jmsSendBx(TcpPackageModel tcpPackageModel) {
+		jmsSend(tcpPackageModel, this.queueBx);
 	}
 
-	public void writePackageLog(TcpPackageModel pkgModel, String dir) {
-		String datetime = pkgModel.getDataModel().getDataTime().replaceAll("-", "").replaceAll(":", "").replaceAll(" ",
-				"");
+	public void jmsSendBa(TcpPackageModel tcpPackageModel) {
+		jmsSend(tcpPackageModel, this.queueBa);
+	}
+
+	public void jmsSend(TcpPackageModel tcpPackageModel, Queue que) {
+		String json = tcpPackageModel.getDataModel().toJsonString();
+		logger.debug("Package JSON Data: " + json);
+		this.jmsMessagingTemplate.convertAndSend(que, json);
+	}
+
+	public void writePackageLog(TcpPackageModel tcpPackageModel, String dir) {
+		String datetime = tcpPackageModel.getDataModel().getDataTime().replaceAll("-", "").replaceAll(":", "")
+				.replaceAll(" ", "");
 		String date = datetime.substring(0, 8);
 		String time = datetime.substring(8);
-		String fc = pkgModel.getDataModel().getFuncCode();
-		String gwno = String.valueOf(pkgModel.getDataModel().getGatewayNo());
-		String contents = pkgModel.toJsonString();
+		String fc = tcpPackageModel.getDataModel().getFuncCode();
+		String gwno = String.valueOf(tcpPackageModel.getDataModel().getGatewayNo());
+		String contents = tcpPackageModel.getDataModel().toJsonString();
 		String fileName = logPath + File.separator + dir + File.separator + date + File.separator + gwno
 				+ File.separator + fc + File.separator + time + logSuffix;
 		writeLog(fileName, contents);

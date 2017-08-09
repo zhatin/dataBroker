@@ -53,9 +53,14 @@ public class Application {
         ctx.getBean(TCPServer.class).start();
     }
     
-    @Bean
-	public Queue queue() {
-		return new ActiveMQQueue(queueName);
+    @Bean(name="queueBx")
+	public Queue queueBx() {
+		return new ActiveMQQueue(queueBxName);
+	}
+
+    @Bean(name="queueBa")
+	public Queue queueBa() {
+		return new ActiveMQQueue(queueBaName);
 	}
 
     @Value("${tcp.port:8091}")
@@ -73,8 +78,11 @@ public class Application {
     @Value("${so.backlog:100}")
     private int backlog;
     
-    @Value("${bdreport.queue.name:'bdreport.queue'}")
-    private String queueName;
+    @Value("${bdreport.queueBx.name:'bdreport.queueBx'}")
+    private String queueBxName;
+    
+    @Value("${bdreport.queueBa.name:'bdreport.queueBa'}")
+    private String queueBaName;
     
 	@SuppressWarnings("unchecked")
     @Bean(name = "serverBootstrap")
