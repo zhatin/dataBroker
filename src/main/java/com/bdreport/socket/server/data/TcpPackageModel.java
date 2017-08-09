@@ -7,16 +7,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.jms.Queue;
+
 import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Component;
 
 import com.alibaba.fastjson.JSON;
+import com.bdreport.socket.server.Application;
 import com.bdreport.socket.server.netty.handler.TcpServerHandler;
 
 import io.netty.channel.ChannelHandler;
@@ -30,9 +37,10 @@ public class TcpPackageModel {
 	private int inetPort = 0;
 
 	private Object dataModel;
+	private Queue queue;
 
 	private static Logger logger = Logger.getLogger(TcpPackageModel.class.getName());
-	
+
 	public static final int PACKAGE_HEADER_LENGTH = 13;
 	public static final int PACKAGE_CHECK_LENGTH = 1;
 	public static final int PACKAGE_TAILER_LENGTH = 4;
@@ -97,6 +105,14 @@ public class TcpPackageModel {
 
 	public void setDataModel(DataModel dataModel) {
 		this.dataModel = dataModel;
+	}
+
+	public Queue getQueue() {
+		return queue;
+	}
+
+	public void setQueue(Queue queue) {
+		this.queue = queue;
 	}
 
 	public void fromBytes(byte[] buf) {
@@ -207,7 +223,7 @@ public class TcpPackageModel {
 					for (int i = 0; i < datInTerm / 2; i++) {
 						int i1 = ptr + 4 + i * 2;
 						int i2 = i1 + 1;
-						//logger.debug("i1 : " + i1 + ", i2 : " + i2);
+						// logger.debug("i1 : " + i1 + ", i2 : " + i2);
 						float f = short2float((short) (((data[i1] & 0xFF) << 8) | (data[i2] & 0xFF)));
 						lst.add(f);
 					}
@@ -225,6 +241,8 @@ public class TcpPackageModel {
 			logger.debug("Package Data Time: " + strTime);
 			dataModel = new DataModelBx(ipAddr, inetPort, byteToHexString(funcCode), gatewayNo, strTime, datalen,
 					dataList);
+
+			setQueue((Queue) Application.getAppCtx().getBean("queueBx"));
 		} else {
 			logger.debug("Package FuncCode not Bx. ");
 			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
@@ -307,4 +325,5 @@ public class TcpPackageModel {
 		fc[0] = dat;
 		return Hex.encodeHexString(fc).toUpperCase();
 	}
+
 }

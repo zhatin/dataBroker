@@ -164,7 +164,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 							+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
 
 					try {
-						jmsSendBx(tcpPackageModel);
+						jmsSend(tcpPackageModel);
 
 						ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
 						logger.debug("Sent Response: " + Hex.encodeHexString(msgSucceed).toUpperCase() + " To Client: "
@@ -216,18 +216,10 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 		this.channelRepository = channelRepository;
 	}
 
-	public void jmsSendBx(TcpPackageModel tcpPackageModel) {
-		jmsSend(tcpPackageModel, this.queueBx);
-	}
-
-	public void jmsSendBa(TcpPackageModel tcpPackageModel) {
-		jmsSend(tcpPackageModel, this.queueBa);
-	}
-
-	public void jmsSend(TcpPackageModel tcpPackageModel, Queue que) {
+	public void jmsSend(TcpPackageModel tcpPackageModel) {
 		String json = tcpPackageModel.getDataModel().toJsonString();
 		logger.debug("Package JSON Data: " + json);
-		this.jmsMessagingTemplate.convertAndSend(que, json);
+		this.jmsMessagingTemplate.convertAndSend(tcpPackageModel.getQueue(), json);
 	}
 
 	public void writePackageLog(TcpPackageModel tcpPackageModel, String dir) {
