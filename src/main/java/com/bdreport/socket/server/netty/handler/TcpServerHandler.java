@@ -90,12 +90,6 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 	private JmsMessagingTemplate jmsMessagingTemplate;
 
 	@Autowired
-	private Queue queueBx;
-
-	@Autowired
-	private Queue queueBa;
-
-	@Autowired
 	private ChannelRepository channelRepository;
 
 	private static Logger logger = Logger.getLogger(TcpServerHandler.class.getName());

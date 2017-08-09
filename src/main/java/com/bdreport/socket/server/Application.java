@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.*;
 import org.springframework.jms.annotation.EnableJms;
@@ -32,104 +33,109 @@ import javax.jms.Queue;
 
 @SpringBootApplication
 @ComponentScan(basePackages = "com.bdreport")
-@PropertySource(value= "classpath:/properties/local/application.properties")
+@PropertySource(value = "classpath:/properties/local/application.properties")
 @EnableJms
 public class Application {
 
-    @Configuration
-    @Profile("production")
-    @PropertySource("classpath:/properties/production/application.properties")
-    static class Production
-    { }
+	@Configuration
+	@Profile("production")
+	@PropertySource("classpath:/properties/production/application.properties")
+	static class Production {
+	}
 
-    @Configuration
-    @Profile("local")
-    @PropertySource({"classpath:/properties/local/application.properties"})
-    static class Local
-    { }
+	@Configuration
+	@Profile("local")
+	@PropertySource({ "classpath:/properties/local/application.properties" })
+	static class Local {
+	}
 
-    public static void main(String[] args) throws Exception{
-        ConfigurableApplicationContext ctx = SpringApplication.run(Application.class, args);
-        ctx.getBean(TCPServer.class).start();
-    }
-    
-    @Bean(name="queueBx")
+	private static ConfigurableApplicationContext ctx;
+	
+	public static ConfigurableApplicationContext getAppCtx() {
+		return ctx;
+	}
+
+	public static void main(String[] args) throws Exception {
+		ctx = SpringApplication.run(Application.class, args);
+		ctx.getBean(TCPServer.class).start();
+	}
+
+	@Bean(name = "queueBx")
 	public Queue queueBx() {
 		return new ActiveMQQueue(queueBxName);
 	}
 
-    @Bean(name="queueBa")
+	@Bean(name = "queueBa")
 	public Queue queueBa() {
 		return new ActiveMQQueue(queueBaName);
 	}
 
-    @Value("${tcp.port:8091}")
-    private int tcpPort;
+	@Value("${tcp.port:8091}")
+	private int tcpPort;
 
-    @Value("${boss.thread.count:2}")
-    private int bossCount;
+	@Value("${boss.thread.count:2}")
+	private int bossCount;
 
-    @Value("${worker.thread.count:2}")
-    private int workerCount;
+	@Value("${worker.thread.count:2}")
+	private int workerCount;
 
-    @Value("${so.keepalive:true}")
-    private boolean keepAlive;
+	@Value("${so.keepalive:true}")
+	private boolean keepAlive;
 
-    @Value("${so.backlog:100}")
-    private int backlog;
-    
-    @Value("${bdreport.queueBx.name:'bdreport.queueBx'}")
-    private String queueBxName;
-    
-    @Value("${bdreport.queueBa.name:'bdreport.queueBa'}")
-    private String queueBaName;
-    
+	@Value("${so.backlog:100}")
+	private int backlog;
+
+	@Value("${bdreport.queueBx.name:'bdreport.queueBx'}")
+	private String queueBxName;
+
+	@Value("${bdreport.queueBa.name:'bdreport.queueBa'}")
+	private String queueBaName;
+
 	@SuppressWarnings("unchecked")
-    @Bean(name = "serverBootstrap")
-    public ServerBootstrap bootstrap() {
-        ServerBootstrap b = new ServerBootstrap();
-        b.group(bossGroup(), workerGroup())
-                .channel(NioServerSocketChannel.class)
-                .handler(new LoggingHandler(LogLevel.DEBUG))
-                .childHandler(tcpChannelInitializer);
-        Map<ChannelOption<?>, Object> tcpChannelOptions = tcpChannelOptions();
-        Set<ChannelOption<?>> keySet = tcpChannelOptions.keySet();
-        for (@SuppressWarnings("rawtypes") ChannelOption option : keySet) {
-            b.option(option, tcpChannelOptions.get(option));
-        }
-        return b;
-    }
+	@Bean(name = "serverBootstrap")
+	public ServerBootstrap bootstrap() {
+		ServerBootstrap b = new ServerBootstrap();
+		b.group(bossGroup(), workerGroup()).channel(NioServerSocketChannel.class)
+				.handler(new LoggingHandler(LogLevel.DEBUG)).childHandler(tcpChannelInitializer);
+		Map<ChannelOption<?>, Object> tcpChannelOptions = tcpChannelOptions();
+		Set<ChannelOption<?>> keySet = tcpChannelOptions.keySet();
+		for (@SuppressWarnings("rawtypes")
+		ChannelOption option : keySet) {
+			b.option(option, tcpChannelOptions.get(option));
+		}
+		return b;
+	}
 
-    @Autowired
-    @Qualifier("tcpChannelInitializer")
-    private TcpChannelInitializer tcpChannelInitializer;
+	@Autowired
+	@Qualifier("tcpChannelInitializer")
+	private TcpChannelInitializer tcpChannelInitializer;
 
-    @Bean(name = "tcpChannelOptions")
-    public Map<ChannelOption<?>, Object> tcpChannelOptions() {
-        Map<ChannelOption<?>, Object> options = new HashMap<ChannelOption<?>, Object>();
-        options.put(ChannelOption.SO_KEEPALIVE, keepAlive);
-        options.put(ChannelOption.SO_BACKLOG, backlog);
-        return options;
-    }
+	@Bean(name = "tcpChannelOptions")
+	public Map<ChannelOption<?>, Object> tcpChannelOptions() {
+		Map<ChannelOption<?>, Object> options = new HashMap<ChannelOption<?>, Object>();
+		options.put(ChannelOption.SO_KEEPALIVE, keepAlive);
+		options.put(ChannelOption.SO_BACKLOG, backlog);
+		return options;
+	}
 
-    @Bean(name = "bossGroup", destroyMethod = "shutdownGracefully")
-    public NioEventLoopGroup bossGroup() {
-        return new NioEventLoopGroup(bossCount);
-    }
+	@Bean(name = "bossGroup", destroyMethod = "shutdownGracefully")
+	public NioEventLoopGroup bossGroup() {
+		return new NioEventLoopGroup(bossCount);
+	}
 
-    @Bean(name = "workerGroup", destroyMethod = "shutdownGracefully")
-    public NioEventLoopGroup workerGroup() {
-        return new NioEventLoopGroup(workerCount);
-    }
+	@Bean(name = "workerGroup", destroyMethod = "shutdownGracefully")
+	public NioEventLoopGroup workerGroup() {
+		return new NioEventLoopGroup(workerCount);
+	}
 
-    @Bean(name = "tcpSocketAddress")
-    public InetSocketAddress tcpPort() {
-        return new InetSocketAddress(tcpPort);
-    }
+	@Bean(name = "tcpSocketAddress")
+	public InetSocketAddress tcpPort() {
+		return new InetSocketAddress(tcpPort);
+	}
 
-    @Bean(name = "channelRepository")
-    public ChannelRepository channelRepository() {
-        return new ChannelRepository();
-    }
+	@Bean(name = "channelRepository")
+	public ChannelRepository channelRepository() {
+		return new ChannelRepository();
+	}
 
 }
