@@ -11,22 +11,11 @@ import javax.jms.Queue;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Component;
 
-import com.alibaba.fastjson.JSON;
 import com.bdreport.socket.server.Application;
 import com.bdreport.socket.server.netty.handler.TcpServerHandler;
 
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 
 @Component
@@ -38,6 +27,9 @@ public class TcpPackageModel {
 
 	private Object dataModel;
 	private Queue queue;
+
+	byte funcCode = (byte) 0;
+	int packagelen = 0;
 
 	private static Logger logger = Logger.getLogger(TcpPackageModel.class.getName());
 
@@ -142,14 +134,16 @@ public class TcpPackageModel {
 			logger.debug("Package Null Error.");
 			return PACKAGE_PARSE_FAILED_PACKAGE_NULL;
 		}
-		int len = buf.length;
-		logger.debug("Buffer length is : " + len);
-		if (len < 2) {// package empty
+
+		packagelen = buf.length;
+
+		logger.debug("Buffer length is : " + packagelen);
+		if (packagelen < 2) {// package empty
 			logger.debug("Package Empty Error.");
 			return PACKAGE_PARSE_FAILED_PACKAGE_EMPTY;
 		}
-		bytesMsg = Arrays.copyOf(buf, len);
-		byte funcCode = (byte) 0;
+
+		bytesMsg = Arrays.copyOf(buf, packagelen);
 
 		funcCode = bytesMsg[1];
 
@@ -160,6 +154,11 @@ public class TcpPackageModel {
 		case (byte) 0xB3:
 		case (byte) 0xB4:
 			return fromBx(buf);
+		case (byte) 0xA1:
+		case (byte) 0xA2:
+		case (byte) 0xA3:
+		case (byte) 0xA4:
+			return fromBa(buf);
 		default:
 			logger.debug("Package FuncCode Unkown: " + byteToHexString(funcCode));
 			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
@@ -169,23 +168,9 @@ public class TcpPackageModel {
 	}
 
 	private int fromBx(byte[] buf) {
-		if (buf == null) {// package null
-			logger.debug("Package Null Error.");
-			return PACKAGE_PARSE_FAILED_PACKAGE_NULL;
-		}
-		int len = buf.length;
-		if (len < 2) {// package empty
-			logger.debug("Package Empty Error.");
-			return PACKAGE_PARSE_FAILED_PACKAGE_EMPTY;
-		}
-		byte funcCode = (byte) 0;
-
-		funcCode = bytesMsg[1];
-
-		logger.debug("Protocol code is : " + byteToHexString(funcCode));
 
 		if (funcCode == (byte) 0xB1 || funcCode == (byte) 0xB2 || funcCode == (byte) 0xB3 || funcCode == (byte) 0xB4) {
-			if (len < 13) {// package broken
+			if (packagelen < 13) {// package broken
 				logger.debug("Package Broken Error.");
 				return PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
 			}
@@ -203,7 +188,7 @@ public class TcpPackageModel {
 			// " " + hour + ":" + minute + ":" + second);
 			logger.debug("Data length is : " + length);
 
-			if (len < 13 + length) {// data broken
+			if (packagelen < 13 + length) {// data broken
 				logger.debug("Package Data Broken Error, Data Length: " + length);
 				return PACKAGE_PARSE_FAILED_DATA_BROKEN;
 			}
@@ -213,6 +198,7 @@ public class TcpPackageModel {
 			Map<Integer, List<Float>> dataList = new HashMap<Integer, List<Float>>();
 
 			byte chk = checkSum(data);
+
 			if (bytesMsg[13 + length] == chk) {
 				while (ptr < length) {
 					int termNo = (int) (((data[ptr] & 0xFF) << 8) | (data[ptr + 1] & 0xFF));
@@ -249,6 +235,78 @@ public class TcpPackageModel {
 		}
 		logger.debug("Package Parse Succeed.");
 		return PACKAGE_PARSE_SUCCEED;
+	}
+
+	private int fromBa(byte[] buf) {
+
+		if (funcCode == (byte) 0xA1 || funcCode == (byte) 0xA2 || funcCode == (byte) 0xA3 || funcCode == (byte) 0xA4) {
+			if (packagelen < 13) {// package broken
+				logger.debug("Package Broken Error.");
+				return PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
+			}
+			int gatewayNo = (int) (((bytesMsg[2] & 0xFF) << 8) | (bytesMsg[3] & 0xFF));
+			int year = (int) (((bytesMsg[4] & 0xFF) << 8) | (bytesMsg[5] & 0xFF));
+			int month = (int) bytesMsg[6];
+			int day = (int) bytesMsg[7];
+			int hour = (int) bytesMsg[8];
+			int minute = (int) bytesMsg[9];
+			int second = (int) bytesMsg[10];
+			int length = (int) (((bytesMsg[11] & 0xFF) << 8) | (bytesMsg[12] & 0xFF));
+
+			logger.debug("Gateway No is : " + gatewayNo);
+			// logger.debug("Data time is : " + year + "-" + month + "-" + day +
+			// " " + hour + ":" + minute + ":" + second);
+			logger.debug("Data length is : " + length);
+
+			if (packagelen < 13 + length) {// data broken
+				logger.debug("Package Data Broken Error, Data Length: " + length);
+				return PACKAGE_PARSE_FAILED_DATA_BROKEN;
+			}
+			byte[] data = Arrays.copyOfRange(bytesMsg, 13, 13 + length);
+			int ptr = 0;
+			int datalen = 0;
+			Map<Integer, Map<Integer, Float>> dataList = new HashMap<Integer, Map<Integer, Float>>();
+
+			byte chk = checkSum(data);
+
+			if (bytesMsg[13 + length] == chk) {
+				while (ptr < length) {
+					int termNo = (int) (((data[ptr] & 0xFF) << 8) | (data[ptr + 1] & 0xFF));
+					logger.debug("termNo : " + termNo);
+					int datInTerm = (int) (((data[ptr + 2] & 0xFF) << 8) | (data[ptr + 3] & 0xFF));
+					logger.debug("datinTerm : " + datInTerm);
+					Map<Integer, Float> lst = new HashMap<Integer, Float>();
+					for (int i = 0; i < (datInTerm - 4) / 5; i++) {
+						int i1 = ptr + 4 + i * 5;
+						int sid = (int) (((data[i1] & 0xFF) << 8) | (data[i1 + 1] & 0xFF));
+						// logger.debug("i1 : " + i1 + ", i2 : " + i2);
+						float f = short2float((short) (((data[i1 + 3] & 0xFF) << 8) | (data[i1 + 4] & 0xFF)));
+						lst.put(sid, f);
+					}
+					dataList.put(termNo, lst);
+					datalen = datalen + (datInTerm - 4) / 5;
+					ptr = ptr + datInTerm;
+					logger.debug("ptr : " + ptr);
+				}
+			} else { // Data Checksum Error
+				logger.debug("Package Data Checksum Error. expect : " + byteToHexString(chk) + " , but : "
+						+ byteToHexString(bytesMsg[13 + length]));
+				return PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR;
+			}
+			String strTime = String.format("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);
+			logger.debug("Package Data Time: " + strTime);
+			dataModel = new DataModelBa(ipAddr, inetPort, byteToHexString(funcCode), gatewayNo, strTime, datalen,
+					dataList);
+
+			setQueue((Queue) Application.getAppCtx().getBean("queueBa"));
+		} else {
+			logger.debug("Package FuncCode not Ba. ");
+			return PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN;
+		}
+
+		logger.debug("Package Parse Succeed.");
+		return PACKAGE_PARSE_SUCCEED;
+
 	}
 
 	public float short2float(final short sh) {
