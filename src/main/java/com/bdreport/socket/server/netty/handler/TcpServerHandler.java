@@ -119,10 +119,93 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+		channelReadByte(ctx, msg);
+		// channelReadBatch(ctx, msg);
+	}
+
+	private void channelReadByte(ChannelHandlerContext ctx, Object msg) throws Exception {
+		ByteBuf in = (ByteBuf) msg;
+		try {
+			while (in.isReadable()) {
+				byte byHex = (byte) in.readByte();
+				if (isHead == TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL) {
+					if (byHex == TcpPackageModel.PACKAGE_FRAME_HEAD_BYTE_EE) {
+						isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_START;
+						logger.debug("Found Frame Head 0xEE.");
+						byteBuf.writeByte(byHex);
+					}
+				} else {
+					if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FF) {
+						switch (isTail) {
+						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL:
+							logger.debug("Found Frame Tail 1 0xFF.");
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_START;
+							break;
+						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_2:
+							logger.debug("Found Frame Tail 3 0xFF.");
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_3;
+							break;
+						case TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_3:
+							logger.debug("Found Frame Tail 4 0xFF.");
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_END;
+							break;
+						default:
+							logger.debug("Reset Frame Tail.");
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
+							break;
+						}
+					} else if (byHex == TcpPackageModel.PACKAGE_FRAME_TAIL_BYTE_FC) {
+						if (isTail == TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_START) {
+							logger.debug("Found Frame Tail 2 0xFC.");
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_2;
+						} else {
+							logger.debug("Reset Frame Tail.");
+							isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
+						}
+					} else {
+						// logger.debug("Reset Frame Tail.");
+						isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
+					}
+					byteBuf.writeByte(byHex);
+					if (isTail == TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_END) {
+						byte[] hexByte = new byte[byteBuf.readableBytes()];
+						byteBuf.readBytes(hexByte);
+						TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
+						String hexStr = tcpPackageModel.toHexString();
+						logger.debug("Received Message: " + hexStr + " From Client: "
+								+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
+
+						try {
+							jmsSend(tcpPackageModel);
+
+							writePackageLog(tcpPackageModel, DIR_SUCCEED);
+							ctx.writeAndFlush(Unpooled.wrappedBuffer(msgSucceed));
+							logger.debug("Sent Response: " + Hex.encodeHexString(msgSucceed).toUpperCase()
+									+ " To Client: " + ctx.channel().remoteAddress().toString());
+						} catch (Exception e) {
+							e.printStackTrace();
+							writePackageLog(tcpPackageModel, DIR_FAILED);
+						}
+
+						isHead = TcpPackageModel.PACKAGE_FRAME_HEAD_STATUS_NULL;
+						isTail = TcpPackageModel.PACKAGE_FRAME_TAIL_STATUS_NULL;
+
+						byteBuf.clear();
+
+					}
+				}
+			}
+		} finally {
+			in.release();
+		}
+	}
+
+	private void channelReadBatch(ChannelHandlerContext ctx, Object msg) throws Exception {
 		ByteBuf in = (ByteBuf) msg;
 
 		try {
 			while (in.isReadable()) {
+				logger.debug("Readable bytes in buffer is : " + in.readableBytes());
 				if (in.isReadable(TcpPackageModel.PACKAGE_HEADER_LENGTH)) {
 
 					byte[] bytesHead = new byte[TcpPackageModel.PACKAGE_HEADER_LENGTH];
@@ -135,6 +218,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 					int datalength = (int) (((bytesHead[11] & 0xFF) << 8) | (bytesHead[12] & 0xFF));
 
 					while (in.isReadable()) {
+						logger.debug("Readable bytes in buffer is : " + in.readableBytes());
 						if (in.isReadable(datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
 								+ TcpPackageModel.PACKAGE_TAILER_LENGTH)) {
 							byte[] bytesMsg = new byte[datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
