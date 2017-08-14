@@ -88,7 +88,10 @@ public class TcpPackageModel {
 		InetSocketAddress socket = ((InetSocketAddress) (ctx.channel().remoteAddress()));
 		ipAddr = socket.getAddress().getHostAddress();
 		inetPort = socket.getPort();
-		from(buf);
+		if (buf != null) {
+			packagelen = buf.length;
+			bytesMsg = Arrays.copyOf(buf, packagelen);
+		}
 	}
 
 	public DataModel getDataModel() {
@@ -127,6 +130,10 @@ public class TcpPackageModel {
 		return sum;
 	}
 
+	private int from() {
+		return from(bytesMsg);
+	}
+
 	private int from(byte[] buf) {
 		logger.debug("Buffer : " + Hex.encodeHexString(buf).toUpperCase());
 
@@ -135,15 +142,11 @@ public class TcpPackageModel {
 			return PACKAGE_PARSE_FAILED_PACKAGE_NULL;
 		}
 
-		packagelen = buf.length;
-
 		logger.debug("Buffer length is : " + packagelen);
 		if (packagelen < 2) {// package empty
 			logger.debug("Package Empty Error.");
 			return PACKAGE_PARSE_FAILED_PACKAGE_EMPTY;
 		}
-
-		bytesMsg = Arrays.copyOf(buf, packagelen);
 
 		funcCode = bytesMsg[1];
 
@@ -307,6 +310,10 @@ public class TcpPackageModel {
 		logger.debug("Package Parse Succeed.");
 		return PACKAGE_PARSE_SUCCEED;
 
+	}
+
+	public int Validate() {
+		return from();
 	}
 
 	public float short2float(final short sh) {
