@@ -119,8 +119,8 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-		channelReadByte(ctx, msg);
-		// channelReadBatch(ctx, msg);
+		// channelReadByte(ctx, msg);
+		channelReadBatch(ctx, msg);
 	}
 
 	private void channelReadByte(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -171,6 +171,7 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 						byte[] hexByte = new byte[byteBuf.readableBytes()];
 						byteBuf.readBytes(hexByte);
 						TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
+						int ret = tcpPackageModel.Validate();
 						String hexStr = tcpPackageModel.toHexString();
 						logger.debug("Received Message: " + hexStr + " From Client: "
 								+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
@@ -205,38 +206,23 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 
 		try {
 			while (in.isReadable()) {
-				logger.debug("Readable bytes in buffer is : " + in.readableBytes());
-				if (in.isReadable(TcpPackageModel.PACKAGE_HEADER_LENGTH)) {
+				int readLen = in.readableBytes();
+				logger.debug("Readable bytes in buffer is : " + readLen);
+				byte[] bytesRead = new byte[readLen];
+				in.readBytes(bytesRead, 0, readLen);
+				int bufLen = byteBuf.readableBytes();
+				if (byteBuf.capacity() < bufLen + readLen) {
+					byteBuf.capacity(bufLen + readLen);
+				}
+				byteBuf.writeBytes(bytesRead);
 
-					byte[] bytesHead = new byte[TcpPackageModel.PACKAGE_HEADER_LENGTH];
-					in.readBytes(bytesHead, 0, TcpPackageModel.PACKAGE_HEADER_LENGTH);
-					byteBuf.writeBytes(bytesHead);
-					if (bytesHead[0] != TcpPackageModel.PACKAGE_FRAME_HEAD_BYTE_EE) {
-						break;
-					}
+				ByteBuf byTemp = byteBuf.copy();
+				byte[] hexByte = new byte[byTemp.readableBytes()];
+				byTemp.readBytes(hexByte);
 
-					int datalength = (int) (((bytesHead[11] & 0xFF) << 8) | (bytesHead[12] & 0xFF));
-
-					while (in.isReadable()) {
-						logger.debug("Readable bytes in buffer is : " + in.readableBytes());
-						if (in.isReadable(datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
-								+ TcpPackageModel.PACKAGE_TAILER_LENGTH)) {
-							byte[] bytesMsg = new byte[datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
-									+ TcpPackageModel.PACKAGE_TAILER_LENGTH];
-							in.readBytes(bytesMsg, 0, datalength + TcpPackageModel.PACKAGE_CHECK_LENGTH
-									+ TcpPackageModel.PACKAGE_TAILER_LENGTH);
-							if (byteBuf.capacity() < TcpPackageModel.PACKAGE_HEADER_LENGTH + datalength
-									+ TcpPackageModel.PACKAGE_CHECK_LENGTH + TcpPackageModel.PACKAGE_TAILER_LENGTH) {
-								byteBuf.capacity(TcpPackageModel.PACKAGE_HEADER_LENGTH + datalength
-										+ TcpPackageModel.PACKAGE_CHECK_LENGTH + TcpPackageModel.PACKAGE_TAILER_LENGTH);
-							}
-							byteBuf.writeBytes(bytesMsg);
-						}
-					}
-
-					byte[] hexByte = new byte[byteBuf.readableBytes()];
-					byteBuf.readBytes(hexByte);
-					TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
+				TcpPackageModel tcpPackageModel = new TcpPackageModel(ctx, hexByte);
+				int ret = tcpPackageModel.Validate();
+				if (ret == TcpPackageModel.PACKAGE_PARSE_SUCCEED) {
 					String hexStr = tcpPackageModel.toHexString();
 					logger.debug("Received Message: " + hexStr + " From Client: "
 							+ ((InetSocketAddress) (ctx.channel().remoteAddress())).getAddress().getHostAddress());
@@ -257,8 +243,10 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 					}
 
 					byteBuf.clear();
-
+				} else if (ret == TcpPackageModel.PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR) {
+					byteBuf.clear();
 				}
+				byTemp.release();
 
 			}
 		} catch (Exception e) {
