@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.*;
 import org.springframework.jms.annotation.EnableJms;
@@ -21,8 +20,6 @@ import org.springframework.jms.annotation.EnableJms;
 import com.bdreport.socket.server.netty.ChannelRepository;
 import com.bdreport.socket.server.netty.TCPServer;
 import com.bdreport.socket.server.netty.handler.TcpChannelInitializer;
-
-import ch.qos.logback.classic.Logger;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;
