@@ -38,7 +38,9 @@ public class TcpPackageModel {
 	public static final int PACKAGE_TAILER_LENGTH = 4;
 
 	public static final int PACKAGE_PARSE_SUCCEED = 0x00;
+	public static final int PACKAGE_PARSE_FAILED_NOT_COMPLETED = 0x05;
 	public static final int PACKAGE_PARSE_FAILED_PACKAGE_NULL = 0x10;
+	public static final int PACKAGE_PARSE_FAILED_HEAD_BYTE_ERROR = 0x15;
 	public static final int PACKAGE_PARSE_FAILED_PACKAGE_EMPTY = 0x20;
 	public static final int PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN = 0x25;
 	public static final int PACKAGE_PARSE_FAILED_PACKAGE_BROKEN = 0x30;
@@ -148,6 +150,13 @@ public class TcpPackageModel {
 			return PACKAGE_PARSE_FAILED_PACKAGE_EMPTY;
 		}
 
+		byte byHead = bytesMsg[0];
+		
+		if (byHead != PACKAGE_FRAME_HEAD_BYTE_EE) {
+			logger.debug("Package Protocol Token Error.");
+			return PACKAGE_PARSE_FAILED_HEAD_BYTE_ERROR;
+		}
+		
 		funcCode = bytesMsg[1];
 
 		switch (funcCode) {
@@ -175,7 +184,7 @@ public class TcpPackageModel {
 		if (funcCode == (byte) 0xB1 || funcCode == (byte) 0xB2 || funcCode == (byte) 0xB3 || funcCode == (byte) 0xB4) {
 			if (packagelen < 13) {// package broken
 				logger.debug("Package Broken Error.");
-				return PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
+				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
 			}
 			int gatewayNo = (int) (((bytesMsg[2] & 0xFF) << 8) | (bytesMsg[3] & 0xFF));
 			int year = (int) (((bytesMsg[4] & 0xFF) << 8) | (bytesMsg[5] & 0xFF));
@@ -193,7 +202,7 @@ public class TcpPackageModel {
 
 			if (packagelen < 13 + length) {// data broken
 				logger.debug("Package Data Broken Error, Data Length: " + length);
-				return PACKAGE_PARSE_FAILED_DATA_BROKEN;
+				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_DATA_BROKEN;
 			}
 			byte[] data = Arrays.copyOfRange(bytesMsg, 13, 13 + length);
 			int ptr = 0;
@@ -245,7 +254,7 @@ public class TcpPackageModel {
 		if (funcCode == (byte) 0xA1 || funcCode == (byte) 0xA2 || funcCode == (byte) 0xA3 || funcCode == (byte) 0xA4) {
 			if (packagelen < 13) {// package broken
 				logger.debug("Package Broken Error.");
-				return PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
+				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
 			}
 			int gatewayNo = (int) (((bytesMsg[2] & 0xFF) << 8) | (bytesMsg[3] & 0xFF));
 			int year = (int) (((bytesMsg[4] & 0xFF) << 8) | (bytesMsg[5] & 0xFF));
@@ -263,7 +272,7 @@ public class TcpPackageModel {
 
 			if (packagelen < 13 + length) {// data broken
 				logger.debug("Package Data Broken Error, Data Length: " + length);
-				return PACKAGE_PARSE_FAILED_DATA_BROKEN;
+				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_DATA_BROKEN;
 			}
 			byte[] data = Arrays.copyOfRange(bytesMsg, 13, 13 + length);
 			int ptr = 0;

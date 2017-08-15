@@ -243,8 +243,17 @@ public class TcpServerHandler extends ChannelInboundHandlerAdapter {
 					}
 
 					byteBuf.clear();
-				} else if (ret == TcpPackageModel.PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR
-						|| ret == TcpPackageModel.PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN) {
+				} else if (ret == TcpPackageModel.PACKAGE_PARSE_FAILED_NOT_COMPLETED) {
+					//do nothing, just waiting for more data.
+				} else {
+					/*
+					 * ret ==
+					 * TcpPackageModel.PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR
+					 * || ret ==
+					 * TcpPackageModel.PACKAGE_PARSE_FAILED_FUNCCODE_UNKOWN ||
+					 * ret ==
+					 * TcpPackageModel.PACKAGE_PARSE_FAILED_HEAD_BYTE_ERROR
+					 */
 					byteBuf.clear();
 				}
 				byTemp.release();
