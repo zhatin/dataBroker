@@ -33,8 +33,9 @@ public class TcpPackageModel {
 
 	private static Logger logger = Logger.getLogger(TcpPackageModel.class.getName());
 
-	public static final int PACKAGE_HEADER_LENGTH = 13;
-	public static final int PACKAGE_CHECK_LENGTH = 1;
+	public static final int PACKAGE_BX_HEADER_LENGTH = 13;
+	public static final int PACKAGE_BA_HEADER_LENGTH = 13;
+	public static final int PACKAGE_CHECKSUM_LENGTH = 1;
 	public static final int PACKAGE_TAILER_LENGTH = 4;
 
 	public static final int PACKAGE_PARSE_SUCCEED = 0x00;
@@ -182,7 +183,7 @@ public class TcpPackageModel {
 	private int fromBx(byte[] buf) {
 
 		if (funcCode == (byte) 0xB1 || funcCode == (byte) 0xB2 || funcCode == (byte) 0xB3 || funcCode == (byte) 0xB4) {
-			if (packagelen < 13) {// package broken
+			if (packagelen < PACKAGE_BX_HEADER_LENGTH) {// package broken
 				logger.debug("Package Broken Error.");
 				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
 			}
@@ -200,18 +201,18 @@ public class TcpPackageModel {
 			// " " + hour + ":" + minute + ":" + second);
 			logger.debug("Data length is : " + length);
 
-			if (packagelen < 13 + length) {// data broken
+			if (packagelen < PACKAGE_BX_HEADER_LENGTH + length + PACKAGE_CHECKSUM_LENGTH + PACKAGE_TAILER_LENGTH) {// data broken
 				logger.debug("Package Data Broken Error, Data Length: " + length);
 				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_DATA_BROKEN;
 			}
-			byte[] data = Arrays.copyOfRange(bytesMsg, 13, 13 + length);
+			byte[] data = Arrays.copyOfRange(bytesMsg, PACKAGE_BX_HEADER_LENGTH, PACKAGE_BX_HEADER_LENGTH + length);
 			int ptr = 0;
 			int datalen = 0;
 			Map<Integer, List<Float>> dataList = new HashMap<Integer, List<Float>>();
 
 			byte chk = checkSum(data);
 
-			if (bytesMsg[13 + length] == chk) {
+			if (bytesMsg[PACKAGE_BX_HEADER_LENGTH + length] == chk) {
 				while (ptr < length) {
 					int termNo = (int) (((data[ptr] & 0xFF) << 8) | (data[ptr + 1] & 0xFF));
 					logger.debug("termNo : " + termNo);
@@ -232,7 +233,7 @@ public class TcpPackageModel {
 				}
 			} else { // Data Checksum Error
 				logger.debug("Package Data Checksum Error. expect : " + byteToHexString(chk) + " , but : "
-						+ byteToHexString(bytesMsg[13 + length]));
+						+ byteToHexString(bytesMsg[PACKAGE_BX_HEADER_LENGTH + length]));
 				return PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR;
 			}
 			String strTime = String.format("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);
@@ -252,7 +253,7 @@ public class TcpPackageModel {
 	private int fromBa(byte[] buf) {
 
 		if (funcCode == (byte) 0xA1 || funcCode == (byte) 0xA2 || funcCode == (byte) 0xA3 || funcCode == (byte) 0xA4) {
-			if (packagelen < 13) {// package broken
+			if (packagelen < PACKAGE_BA_HEADER_LENGTH) {// package broken
 				logger.debug("Package Broken Error.");
 				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_PACKAGE_BROKEN;
 			}
@@ -270,18 +271,18 @@ public class TcpPackageModel {
 			// " " + hour + ":" + minute + ":" + second);
 			logger.debug("Data length is : " + length);
 
-			if (packagelen < 13 + length) {// data broken
+			if (packagelen < PACKAGE_BA_HEADER_LENGTH + length + PACKAGE_CHECKSUM_LENGTH + PACKAGE_TAILER_LENGTH) {// data broken
 				logger.debug("Package Data Broken Error, Data Length: " + length);
 				return PACKAGE_PARSE_FAILED_NOT_COMPLETED;//PACKAGE_PARSE_FAILED_DATA_BROKEN;
 			}
-			byte[] data = Arrays.copyOfRange(bytesMsg, 13, 13 + length);
+			byte[] data = Arrays.copyOfRange(bytesMsg, PACKAGE_BA_HEADER_LENGTH, PACKAGE_BA_HEADER_LENGTH + length);
 			int ptr = 0;
 			int datalen = 0;
 			Map<Integer, Map<Integer, Float>> dataList = new HashMap<Integer, Map<Integer, Float>>();
 
 			byte chk = checkSum(data);
 
-			if (bytesMsg[13 + length] == chk) {
+			if (bytesMsg[PACKAGE_BA_HEADER_LENGTH + length] == chk) {
 				while (ptr < length) {
 					int termNo = (int) (((data[ptr] & 0xFF) << 8) | (data[ptr + 1] & 0xFF));
 					logger.debug("termNo : " + termNo);
@@ -302,7 +303,7 @@ public class TcpPackageModel {
 				}
 			} else { // Data Checksum Error
 				logger.debug("Package Data Checksum Error. expect : " + byteToHexString(chk) + " , but : "
-						+ byteToHexString(bytesMsg[13 + length]));
+						+ byteToHexString(bytesMsg[PACKAGE_BA_HEADER_LENGTH + length]));
 				return PACKAGE_PARSE_FAILED_DATA_CHECKSUM_ERROR;
 			}
 			String strTime = String.format("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);
